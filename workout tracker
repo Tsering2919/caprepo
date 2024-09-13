@@ -1,0 +1,135 @@
+import csv
+import requests
+import datetime
+from tabulate import tabulate
+from Assci import logo
+import os
+
+NUTRI_APP_ID = "your app id"
+NUTRI_APP_KEY = "your app key"
+
+print(logo)
+
+
+def main():
+    exercise_info = input("What exercise did you do? ")
+    return exercise_info
+
+
+def fetch_exercise_data(exercise):
+    nutri_endpoint = "https://trackapi.nutritionix.com/v2/natural/exercise"
+
+    headers = {
+        "X-app-id": NUTRI_APP_ID,
+        "X-app-key": NUTRI_APP_KEY
+    }
+
+    request_body = {
+        "query": exercise,
+        "gender": "male",
+        "weight_kg": 69,
+        "height_cm": 172,
+        "age": 24
+    }
+
+    response = requests.post(nutri_endpoint, json=request_body, headers=headers)
+    response.raise_for_status()
+    exercise_data = response.json()
+
+    return exercise_data.get("exercises", [])
+
+def create_exercise_entry(data):
+    today_date = datetime.date.today().strftime("%Y-%m-%d")
+    today_time = datetime.datetime.now().strftime("%H:%M:%S")
+
+    entry = {
+        "date": today_date,
+        "time": today_time,
+        "exercise": data['name'],
+        "duration": data['duration_min'],
+        "calories": data['nf_calories']
+    }
+    return entry
+
+
+def save_to_csv(data):
+    fieldnames = ["date", "time", "exercise", "duration", "calories"]
+
+    with open("exercise_data.csv", "a", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+        if file.tell() == 0:
+            writer.writeheader()
+        writer.writerow(data)
+
+    print("Data saved successfully!")
+
+
+def read_csv_data():
+    data = []
+    if os.path.isfile("exercise_data.csv"):
+        with open("exercise_data.csv", "r") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                data.append(row)
+                return data
+
+
+def delete_entry(data):
+    print("Current Workouts:")
+    print_table(data)
+    row_number = input("Enter the row number of the entry to delete (0 to cancel): ")
+
+    try:
+        row_number = int(row_number)
+        if row_number == 0:
+            return
+        if 1 <= row_number <= len(data):
+            entry = data[row_number - 1]
+            data.remove(entry)
+            with open("exercise_data.csv", "w", newline="") as file:
+                writer = csv.DictWriter(file, fieldnames=entry.keys())
+                writer.writeheader()
+                writer.writerows(data)
+            print("Workout deleted successfully!")
+        else:
+            print("Invalid row number.")
+    except ValueError:
+        print("Invalid input. Row number must be a integer.")
+
+
+def print_table(data):
+    table = tabulate(data, headers="keys", tablefmt="rounded_outline")
+    print(table)
+
+
+csv_data = read_csv_data()
+print_table(csv_data)
+
+while True:
+    print("\nWhat do you want to do?:")
+    print("1. Add a new workout")
+    print("2. Delete a workout")
+    print("3. View workouts")
+    print("4. Exit programme")
+    choice = input("Enter your choice (1-4): ")
+
+    if choice == "1":
+        exercise = main()
+        exercise_data = fetch_exercise_data(exercise)
+        for exercise_entry in exercise_data:
+            entry = create_exercise_entry(exercise_entry)
+            save_to_csv(entry)
+        print("\nSaved Data!")
+    elif choice == "2":
+        delete_entry(csv_data)
+        csv_data = read_csv_data()
+    elif choice == "3":
+        csv_data = read_csv_data()
+        print("\nCurrent Workouts:")
+        print_table(csv_data)
+    elif choice == "4":
+        break
+    else:
+        print("Invalid option. Please choose a valid option.")
+
+print("Program exited. Keep up the work!")
